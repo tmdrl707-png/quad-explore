@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<title>여러 가지 사각형 탐구</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   여러 가지 사각형 탐구 — 6.0 첫 차시
+   서버 없이 파일 하나로 동작합니다. (GitHub Pages 그대로 가능)
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --bg:#f6f7fa; --card:#fff; --ink:#1b2437; --dim:#69748c;
+  --line:#dde3ee; --soft:#eef2f8; --ok:#0ca678;
+  --para:#4c6ef5; --rect:#12b886; --rhom:#f08c00; --squ:#e64980;
+  --act:#2f4bd8;
+  --font:-apple-system,BlinkMacSystemFont,'Pretendard','Apple SD Gothic Neo',
+         'Malgun Gothic','맑은 고딕',sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+     font-size:16px;line-height:1.55;word-break:keep-all;
+     padding:env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
+.screen{display:none;max-width:640px;margin:0 auto;padding:16px 14px 44px}
+.screen.on{display:block}
+h1{font-size:23px;font-weight:800;letter-spacing:-.4px;margin:6px 0 4px}
+h2{font-size:17.5px;font-weight:800;margin:0 0 4px}
+.sub{color:var(--dim);font-size:14px}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.tbtn{border-color:var(--line);color:var(--dim);font-size:13px;font-weight:700;
+      padding:8px 12px;border-radius:20px;white-space:nowrap;margin-top:2px}
+.btn{border:2px solid var(--line);background:var(--card);border-radius:14px;
+     padding:11px 16px;font-weight:700;cursor:pointer}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--act);border-color:var(--act);color:#fff}
+.btn.ghost{border:none;background:none;color:var(--dim);font-weight:600;padding:8px 4px}
+
+/* ── 고르기 ── */
+.picks{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:16px}
+.pick{background:var(--card);border:2px solid var(--line);border-radius:20px;
+      padding:14px 10px 11px;cursor:pointer;text-align:center;transition:.12s;position:relative}
+.pick:active{transform:scale(.97)}
+.pick svg{width:100%;height:84px;display:block}
+.pick b{display:block;font-size:16.5px;font-weight:800;margin-top:6px}
+.pick.para{border-color:#c7d2fb}.pick.para b{color:var(--para)}
+.pick.rect{border-color:#b6ead6}.pick.rect b{color:var(--rect)}
+.pick.rhom{border-color:#fbe0b3}.pick.rhom b{color:var(--rhom)}
+.pick.squ{border-color:#f9c9dc}.pick.squ b{color:var(--squ)}
+.pick.clear{border-color:var(--ok);box-shadow:0 0 0 3px #d3f9e9 inset}
+.dots{display:flex;gap:5px;justify-content:center;margin-top:6px}
+.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.dots i.on{background:var(--ok)}
+.badge{position:absolute;top:9px;right:10px;background:var(--ok);color:#fff;
+       font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 9px}
+
+/* ── 정의 관문 ── */
+.gate{background:var(--card);border:2px solid var(--line);border-radius:20px;padding:20px 17px;margin-top:22px}
+.gate .q{font-size:18px;font-weight:700;line-height:1.85;margin:10px 0 4px}
+.gate input{width:96px;border:none;border-bottom:3px solid var(--act);border-radius:0;
+            background:var(--soft);padding:4px 8px;font-size:18px;font-weight:800;
+            text-align:center;margin:0 3px}
+.gate input:focus{outline:none;background:#fff}
+.gate .msg{min-height:22px;font-size:14px;font-weight:700;color:#e8590c;margin:8px 0 2px}
+.shake{animation:sh .3s}
+@keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* ── 탐구 ── */
+.top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.top .name{font-size:19px;font-weight:800;flex:1}
+.def{background:var(--card);border:2px solid var(--line);border-radius:14px;
+     padding:10px 13px;font-size:14.5px;color:var(--dim);margin-bottom:10px}
+.def b{color:var(--ink)}
+.board{background:var(--card);border:2px solid var(--line);border-radius:20px;
+       overflow:hidden;touch-action:none}
+#stage{display:block;width:100%;height:auto;touch-action:none;user-select:none}
+.tools{display:flex;gap:7px;margin:10px 0 0}
+.tools .btn{flex:1;padding:9px 4px;font-size:14px;border-radius:12px;color:var(--dim)}
+.tools .btn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rot{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);
+     border-radius:14px;padding:8px 13px;margin-top:8px}
+.rot span{font-size:14px;font-weight:700;color:var(--dim);white-space:nowrap}
+.rot input{flex:1;accent-color:var(--act);height:26px}
+.rst{text-align:center;margin:2px 0 16px}
+
+/* ── 발문 ── */
+.talk{background:var(--card);border:2px solid var(--line);border-radius:20px;padding:14px}
+.talk .head{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.talk .head h2{flex:1;margin:0}
+.chips{display:flex;gap:7px;margin-bottom:11px}
+.chips button{flex:1;border:2px solid var(--line);background:var(--card);border-radius:13px;
+  padding:9px 3px 8px;font-size:13.5px;font-weight:800;color:var(--dim);cursor:pointer;line-height:1.3}
+.chips button s{display:block;text-decoration:none;font-size:12px;font-weight:800;color:#c3cbd9;margin-top:1px}
+.chips button.sel{border-color:var(--act);background:#eef2ff;color:var(--act)}
+.chips button.sel s{color:var(--act)}
+.chips button.done{border-color:#8ce0c2;background:#e6f9f2;color:#0b7a5a}
+.chips button.done s{color:var(--ok)}
+.intro{background:var(--soft);border-radius:14px;padding:10px 12px;margin-bottom:9px;
+  font-size:14.5px;line-height:1.5;color:var(--ink)}
+.intro b{font-weight:800}
+.log{max-height:none}
+.bub{border-radius:14px;padding:9px 12px;margin-bottom:7px;font-size:15px;line-height:1.5}
+.bub.ai{background:var(--soft)}
+.bub.me{background:#e7edff;margin-left:36px;text-align:right}
+.bub.ok{background:#e6f9f2;border:2px solid #8ce0c2}
+.bub.ok b{display:block;font-size:16.5px;margin-top:4px}
+.bub .hint{display:block;color:#e8590c;font-size:13.5px;font-weight:700;margin-top:4px}
+.talk textarea{width:100%;border:2px solid var(--line);border-radius:12px;
+               padding:10px 12px;min-height:58px;resize:none;background:var(--soft)}
+.talk textarea:focus{outline:none;border-color:var(--act);background:#fff}
+.found{margin-top:14px}
+.slot{display:flex;gap:9px;align-items:flex-start;border-top:1px solid var(--line);padding:10px 0 8px}
+.slot s{text-decoration:none;font-size:15px;font-weight:800;color:#c3cbd9;width:16px;flex:none;line-height:1.5}
+.slot.on s{color:var(--ok)}
+.slot b{display:block;font-size:13px;font-weight:800;color:var(--dim)}
+.slot span{display:block;font-size:15.5px;font-weight:700;margin-top:1px}
+.slot span.wait{color:#b6bfcd;font-weight:600}
+.slot.extra b{color:#9775fa}
+
+/* ── 선생님 모드 : 도형 + 정답 ── */
+.answer{margin-top:16px}
+.answer .row{padding:12px 2px;border-top:1px solid var(--line);
+  display:flex;gap:10px;align-items:baseline;cursor:pointer}
+.answer .row:first-child{border-top:none}
+.answer .row b{flex:none;font-size:15px;font-weight:800;color:var(--dim);min-width:60px}
+.answer .row span{font-size:16.5px;font-weight:700;flex:1}
+.answer .row span.hidden{color:#b6bfcd;font-weight:600}
+.answer .row.def span{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- ═════════ 고르기 ═════════ -->
+<section id="s-pick" class="screen on">
+  <div class="topbar">
+    <div>
+      <h1>여러 가지 사각형 탐구</h1>
+      <div class="sub">하나를 골라 꼭짓점을 움직여 보세요.</div>
+    </div>
+    <button class="btn ghost tbtn" id="tOpen">선생님 모드</button>
+  </div>
+  <div class="picks" id="picks"></div>
+</section>
+
+<!-- ═════════ 선생님 모드 — 비밀번호 ═════════ -->
+<section id="s-tgate" class="screen">
+  <div class="top">
+    <button class="btn ghost" id="tgBack">← 목록</button>
+  </div>
+  <div class="gate">
+    <h2>선생님 모드</h2>
+    <div class="sub" style="margin:2px 0 12px">비밀번호를 입력하세요.</div>
+    <input id="tgPw" type="password" inputmode="numeric" maxlength="8"
+      style="width:100%;border:2px solid var(--line);border-radius:12px;padding:11px 12px;
+      font-size:18px;font-weight:800;text-align:center;background:var(--soft)">
+    <div class="msg" id="tgMsg"></div>
+    <button class="btn primary" id="tgOk" style="width:100%">확인</button>
+  </div>
+</section>
+
+<!-- ═════════ 선생님 모드 — 사각형 고르기 ═════════ -->
+<section id="s-tlist" class="screen">
+  <div class="top">
+    <button class="btn ghost" id="tlBack">← 목록</button>
+    <div class="name" style="text-align:right">선생님 모드</div>
+  </div>
+  <div class="sub" style="margin-bottom:10px">칠판에 띄울 사각형을 고르세요.</div>
+  <div class="picks" id="tPicks"></div>
+</section>
+
+<!-- ═════════ 선생님 모드 — 도형과 정답 ═════════ -->
+<section id="s-treveal" class="screen">
+  <div class="top">
+    <button class="btn ghost" id="trBack">← 사각형 고르기</button>
+    <div class="name" id="trName" style="text-align:right"></div>
+  </div>
+  <div class="board"><svg id="trStage" viewBox="0 0 340 340"></svg></div>
+  <div class="tools">
+    <button class="btn" id="trLen">길이 재기</button>
+    <button class="btn" id="trAng">각도 재기</button>
+    <button class="btn" id="trDia">대각선 보기</button>
+  </div>
+  <div class="rot">
+    <span>회전</span>
+    <input type="range" id="trRot" min="0" max="360" value="0" step="1">
+    <span id="trRotV" style="width:44px;text-align:right">0°</span>
+  </div>
+  <div class="rst"><button class="btn ghost" id="trRst">처음 모양으로</button></div>
+
+  <div class="answer" id="trAnswer"></div>
+</section>
+
+
+
+<!-- ═════════ 정의 관문 ═════════ -->
+<section id="s-gate" class="screen">
+  <div class="top">
+    <button class="btn ghost" id="gBack">← 목록</button>
+    <div class="name" id="gName" style="text-align:right"></div>
+  </div>
+  <div class="gate">
+    <h2>정의를 완성하면 들어갈 수 있어요</h2>
+    <div class="q" id="gQ"></div>
+    <div class="msg" id="gMsg"></div>
+    <button class="btn primary" id="gOk" style="width:100%">확인</button>
+  </div>
+</section>
+
+<!-- ═════════ 탐구 ═════════ -->
+<section id="s-play" class="screen">
+  <div class="top">
+    <button class="btn ghost" id="back">← 목록</button>
+    <div class="name" id="pName" style="text-align:right"></div>
+  </div>
+  <div class="def" id="pDef"></div>
+  <div class="board"><svg id="stage" viewBox="0 0 340 340"></svg></div>
+  <div class="tools">
+    <button class="btn" id="tLen">길이 재기</button>
+    <button class="btn" id="tAng">각도 재기</button>
+    <button class="btn" id="tDia">대각선 보기</button>
+  </div>
+  <div class="rot">
+    <span>회전</span>
+    <input type="range" id="rot" min="0" max="360" value="0" step="1">
+    <span id="rotV" style="width:44px;text-align:right">0°</span>
+  </div>
+  <div class="rst"><button class="btn ghost" id="tRst">처음 모양으로</button></div>
+
+  <div class="talk">
+    <div class="head">
+      <h2>알아낸 것을 말해 보세요</h2>
+      <div id="pClear"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="intro" id="slotIntro"></div>
+    <div class="log" id="log"></div>
+    <div id="inArea" style="display:none">
+      <textarea id="ta" placeholder="떠오른 것을 문장으로 적어 보세요"></textarea>
+      <button class="btn primary" id="send" style="width:100%;margin-top:9px">말하기</button>
+    </div>
+    <div class="found" id="found"></div>
+  </div>
+</section>
+
+<script>
+const el=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ═══════════════════════════════════════════════════════════════════
+   사각형
+   ═══════════════════════════════════════════════════════════════════ */
+const SHAPES={
+  para:{name:'평행사변형',hex:'#4c6ef5',
+        def:'두 쌍의 대변이 각각 <b>평행한</b> 사각형',
+        blanks:[{pre:'두 쌍의 대변이 각각 ',post:'한 사각형',
+                 ok:/평행|나란/,hint:'만나지 않고 나란한 것을 무엇이라고 하나요? ○행'}],
+        init:[[120,105],[80,235],[235,235],[275,105]]},
+  rect:{name:'직사각형',hex:'#12b886',
+        def:'네 내각이 모두 <b>직각인</b> 사각형',
+        blanks:[{pre:'네 내각이 모두 ',post:'인 사각형',
+                 ok:/직각|90/,hint:'크기가 90°인 각을 무엇이라고 하나요? ○각'}],
+        init:[[80,110],[80,240],[265,240],[265,110]]},
+  rhom:{name:'마름모',hex:'#f08c00',
+        def:'네 변의 <b>길이</b>가 모두 같은 사각형',
+        blanks:[{pre:'네 변의 ',post:'가 모두 같은 사각형',
+                 ok:/길이/,hint:'변을 자로 재면 무엇을 알 수 있나요? ○이'}],
+        init:[[170,85],[65,175],[170,265],[275,175]]},
+  squ:{ name:'정사각형',hex:'#e64980',
+        def:'네 내각이 모두 <b>직각</b>이고 네 변의 <b>길이</b>가 모두 같은 사각형',
+        blanks:[{pre:'네 내각이 모두 ',post:'이고,',ok:/직각|90/,hint:'크기가 90°인 각'},
+                {pre:'네 변의 ',post:'가 모두 같은 사각형',ok:/길이/,hint:'자로 재는 것'}],
+        init:[[95,90],[95,255],[260,255],[260,90]]}
+};
+const ORDER=['para','rect','rhom','squ'];
+const LAB=['A','B','C','D'];
+
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+const mul=(a,k)=>[a[0]*k,a[1]*k];
+const len=a=>Math.hypot(a[0],a[1]);
+const unit=a=>{const L=len(a)||1;return[a[0]/L,a[1]/L];};
+const perp=a=>[-a[1],a[0]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1];
+const mid=(a,b)=>mul(add(a,b),.5);
+const area2=P=>{let s=0;for(let i=0;i<4;i++){const p=P[i],q=P[(i+1)%4];s+=p[0]*q[1]-q[0]*p[1];}return s;};
+
+const MIN=46,MINX=14,MAXX=326,MINY=14,MAXY=326;
+const inBox=P=>P.every(p=>p[0]>=MINX&&p[0]<=MAXX&&p[1]>=MINY&&p[1]<=MAXY);
+const bigEnough=P=>{
+  for(let i=0;i<4;i++) if(len(sub(P[(i+1)%4],P[i]))<MIN) return false;
+  return Math.abs(area2(P))>7000;
+};
+
+/* ───────────────────────────────────────────────────────────────────
+   꼭짓점을 끌 때 — 네 꼭짓점이 모두 같은 방식으로 움직입니다.
+   꼭짓점을 끌면 '모양'만 바뀌고 '방향'은 절대 바뀌지 않습니다.
+   회전은 아래 슬라이더가 따로 맡습니다.
+   평행사변형 : 밑변의 방향 고정 — A·D는 기울기와 높이, B·C는 밑변의 길이
+   직사각형   : 두 변의 방향 고정 — 마주 보는 꼭짓점을 고정하고 가로·세로
+   정사각형   : 두 변의 방향 고정 — 한 변의 길이(정사각형은 크기만 변합니다)
+   마름모     : 두 대각선의 방향 고정 — A·C는 한 대각선, B·D는 다른 대각선
+   ─────────────────────────────────────────────────────────────────── */
+function solve(type,P,i,V){
+  const Q=P.map(p=>p.slice());
+
+  if(type==='para'){
+    /* 마주 보는 꼭짓점 F는 고정, F에서 이웃한 두 꼭짓점까지의 '방향'도 고정.
+       끄는 점은 그 두 방향(꼭 직각일 필요는 없음)이 만드는 평면 위에서
+       자유롭게 움직입니다 — 네 꼭짓점이 모두 같은 방식(2차원 자유도)으로 반응합니다. */
+    const F=P[(i+2)%4];
+    const n1=(i+1)%4, n3=(i+3)%4;
+    const u=unit(sub(P[n1],F)), v=unit(sub(P[n3],F));
+    const w=sub(V,F);
+    const det=u[0]*v[1]-u[1]*v[0];
+    let a=MIN,b=MIN;
+    if(Math.abs(det)>1e-6){
+      a=(w[0]*v[1]-w[1]*v[0])/det;
+      b=(u[0]*w[1]-u[1]*w[0])/det;
+    }
+    if(a<MIN)a=MIN; if(b<MIN)b=MIN;
+    Q[n1]=add(F,mul(u,a));
+    Q[n3]=add(F,mul(v,b));
+    Q[i]=add(Q[n1],sub(Q[n3],F));
+    Q[(i+2)%4]=F.slice();
+  }
+  else if(type==='rect'||type==='squ'){
+    const u=unit(sub(P[2],P[1])), n=unit(sub(P[0],P[1]));   /* 두 변의 방향 — 고정 */
+    const F=P[(i+2)%4], w=sub(V,F), ow=sub(P[i],F);
+    const su=Math.sign(dot(ow,u))||1, sn=Math.sign(dot(ow,n))||1;
+    let a=dot(w,u)*su, b=dot(w,n)*sn;
+    if(type==='squ'){ a=b=(a+b)/2; }
+    if(a<MIN)a=MIN; if(b<MIN)b=MIN;
+    const pu=add(F,mul(u,a*su)), pn=add(F,mul(n,b*sn));
+    Q[i]=add(pu,mul(n,b*sn)); Q[(i+2)%4]=F.slice();
+    const d1=len(sub(P[(i+1)%4],pu))+len(sub(P[(i+3)%4],pn));
+    const d2=len(sub(P[(i+1)%4],pn))+len(sub(P[(i+3)%4],pu));
+    if(d1<=d2){ Q[(i+1)%4]=pu; Q[(i+3)%4]=pn; }
+    else      { Q[(i+1)%4]=pn; Q[(i+3)%4]=pu; }
+  }
+  else{                                     /* 마름모 : 두 대각선의 방향 고정 */
+    const F=P[(i+2)%4], dir=unit(sub(P[i],F));
+    let L=dot(sub(V,F),dir); if(L<MIN)L=MIN;
+    Q[i]=add(F,mul(dir,L)); Q[(i+2)%4]=F.slice();
+    const Mo=mid(P[i],P[(i+2)%4]), M=mid(Q[i],Q[(i+2)%4]);
+    const pd=perp(dir);                     /* 매번 수직으로 다시 맞춰 오차가 쌓이지 않게 */
+    const q=mul(pd,dot(sub(P[(i+1)%4],Mo),pd));
+    Q[(i+1)%4]=add(M,q); Q[(i+3)%4]=sub(M,q);
+  }
+  return Q.map(p=>[Math.round(p[0]*10)/10,Math.round(p[1]*10)/10]);
+}
+/* 회전 — 중심을 기준으로 돌리고, 화면 밖으로 나가면 안으로 밀어 넣습니다 */
+function rotate(P,deg){
+  const c=[(P[0][0]+P[1][0]+P[2][0]+P[3][0])/4,(P[0][1]+P[1][1]+P[2][1]+P[3][1])/4];
+  const t=deg*Math.PI/180, co=Math.cos(t), si=Math.sin(t);
+  let Q=P.map(([x,y])=>{const dx=x-c[0],dy=y-c[1];
+    return [c[0]+dx*co-dy*si, c[1]+dx*si+dy*co];});
+  const xs=Q.map(p=>p[0]), ys=Q.map(p=>p[1]);
+  let ox=0,oy=0;
+  if(Math.min(...xs)<MINX) ox=MINX-Math.min(...xs);
+  if(Math.max(...xs)+ox>MAXX) ox=MAXX-Math.max(...xs);
+  if(Math.min(...ys)<MINY) oy=MINY-Math.min(...ys);
+  if(Math.max(...ys)+oy>MAXY) oy=MAXY-Math.max(...ys);
+  return Q.map(([x,y])=>[Math.round((x+ox)*10)/10,Math.round((y+oy)*10)/10]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   그리기
+   ═══════════════════════════════════════════════════════════════════ */
+let cur='para',P=[],base=[],rotDeg=0,showLen=false,showAng=false,showDia=false,drag=-1;
+const CM=v=>(v/20).toFixed(1);
+function angAt(P,i){
+  const v=P[i],a=unit(sub(P[(i+3)%4],v)),b=unit(sub(P[(i+1)%4],v));
+  return Math.acos(Math.max(-1,Math.min(1,dot(a,b))))*180/Math.PI;
+}
+function txt(x,y,t,size,color,weight){
+  return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${size}"
+    font-weight="${weight||800}" fill="${color}"
+    font-family="-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">${t}</text>`;
+}
+function draw(){ renderBoard('stage',cur,P,showLen,showAng,showDia); }
+function renderBoard(elId,cur,P,showLen,showAng,showDia){
+  const c=SHAPES[cur].hex;
+  const cx=(P[0][0]+P[1][0]+P[2][0]+P[3][0])/4, cy=(P[0][1]+P[1][1]+P[2][1]+P[3][1])/4;
+  const O=mid(P[0],P[2]);
+  let g=`<polygon points="${P.map(p=>p.join(',')).join(' ')}" fill="${c}" fill-opacity=".08"
+          stroke="${c}" stroke-width="3" stroke-linejoin="round"/>`;
+  if(showDia){
+    g+=`<line x1="${P[0][0]}" y1="${P[0][1]}" x2="${P[2][0]}" y2="${P[2][1]}" stroke="#69748c" stroke-width="2" stroke-dasharray="6 4"/>`;
+    g+=`<line x1="${P[1][0]}" y1="${P[1][1]}" x2="${P[3][0]}" y2="${P[3][1]}" stroke="#69748c" stroke-width="2" stroke-dasharray="6 4"/>`;
+    g+=`<circle cx="${O[0].toFixed(1)}" cy="${O[1].toFixed(1)}" r="3.6" fill="#1b2437"/>`;
+    const oo=unit(sub(O,[cx,cy]));
+    g+=txt(O[0]+(oo[0]||.7)*15,O[1]+(oo[1]||-.7)*15-4,'O',15,'#1b2437');
+    if(showLen) for(let i=0;i<4;i++){
+      const v=sub(O,P[i]), m=add(P[i],mul(v,.66)), n=mul(unit(perp(v)),15);
+      g+=txt(m[0]+n[0],m[1]+n[1]+4,CM(len(v)),12.5,'#69748c',700);
+    }
+    if(showAng){
+      const a=unit(sub(P[0],O)),b=unit(sub(P[1],O)),r=17;
+      const p1=add(O,mul(a,r)),p2=add(O,mul(b,r)),sw=(a[0]*b[1]-a[1]*b[0])>0?1:0;
+      g+=`<path d="M${p1[0].toFixed(1)},${p1[1].toFixed(1)} A${r},${r} 0 0 ${sw} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="none" stroke="#69748c" stroke-width="2"/>`;
+      const bi=unit(add(a,b));
+      g+=txt(O[0]+bi[0]*33,O[1]+bi[1]*33+4,Math.round(Math.acos(Math.max(-1,Math.min(1,dot(a,b))))*180/Math.PI)+'°',13,'#69748c',700);
+    }
+  }
+  if(showAng) for(let i=0;i<4;i++){
+    const v=P[i],a=unit(sub(P[(i+3)%4],v)),b=unit(sub(P[(i+1)%4],v)),r=25;
+    const p1=add(v,mul(a,r)),p2=add(v,mul(b,r)),sw=(a[0]*b[1]-a[1]*b[0])>0?1:0;
+    g+=`<path d="M${p1[0].toFixed(1)},${p1[1].toFixed(1)} A${r},${r} 0 0 ${sw} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="none" stroke="${c}" stroke-width="2" opacity=".75"/>`;
+    const bi=unit(add(a,b));
+    g+=txt(v[0]+bi[0]*44,v[1]+bi[1]*44+5,Math.round(angAt(P,i))+'°',15,'#1b2437');
+  }
+  if(showLen) for(let i=0;i<4;i++){
+    const m=mid(P[i],P[(i+1)%4]), o=unit(sub(m,[cx,cy]));
+    g+=txt(m[0]+o[0]*21,m[1]+o[1]*21+5,CM(len(sub(P[(i+1)%4],P[i]))),15,c);
+  }
+  for(let i=0;i<4;i++){
+    const p=P[i],o=unit(sub(p,[cx,cy]));
+    g+=txt(p[0]+o[0]*30,p[1]+o[1]*30+6,LAB[i],17,'#69748c');
+    g+=`<circle cx="${p[0]}" cy="${p[1]}" r="10" fill="#fff" stroke="${c}" stroke-width="3.5"/>`;
+    g+=`<circle class="hit" data-i="${i}" cx="${p[0]}" cy="${p[1]}" r="26" fill="transparent"/>`;
+  }
+  el(elId).innerHTML=g;
+}
+function pt(e){
+  const r=el('stage').getBoundingClientRect();
+  return [(e.clientX-r.left)/r.width*340,(e.clientY-r.top)/r.height*340];
+}
+(function(){
+  const svg=el('stage');
+  svg.addEventListener('pointerdown',e=>{
+    if(!e.target.classList.contains('hit')) return;
+    drag=+e.target.dataset.i; svg.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  svg.addEventListener('pointermove',e=>{
+    if(drag<0) return; e.preventDefault();
+    const Q=solve(cur,P,drag,pt(e));
+    if(inBox(Q)&&bigEnough(Q)){
+      /* 모양을 바꾸면 그 모양이 새 기준이 되고, 회전 눈금은 0으로 돌아갑니다 */
+      P=Q; base=Q.map(p=>p.slice()); rotDeg=0;
+      el('rot').value=0; el('rotV').textContent='0°';
+      draw();
+    }
+  });
+  const up=()=>{drag=-1;};
+  svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   선생님 화면용 도형판 — 학생 화면과 같은 방식으로 드래그·회전·표시를
+   지원하는 독립된 보드입니다. (학생 보드와 상태를 공유하지 않습니다)
+   ═══════════════════════════════════════════════════════════════════ */
+function createBoard(elId){
+  const st={cur:'para',P:[],base:[],rotDeg:0,showLen:false,showAng:false,showDia:false,drag:-1};
+  const svg=el(elId);
+  function redraw(){ renderBoard(elId,st.cur,st.P,st.showLen,st.showAng,st.showDia); }
+  function ptOf(e){
+    const r=svg.getBoundingClientRect();
+    return [(e.clientX-r.left)/r.width*340,(e.clientY-r.top)/r.height*340];
+  }
+  svg.addEventListener('pointerdown',e=>{
+    if(!e.target.classList.contains('hit')) return;
+    st.drag=+e.target.dataset.i; svg.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  svg.addEventListener('pointermove',e=>{
+    if(st.drag<0) return; e.preventDefault();
+    const Q=solve(st.cur,st.P,st.drag,ptOf(e));
+    if(inBox(Q)&&bigEnough(Q)){ st.P=Q; st.base=Q.map(p=>p.slice()); st.rotDeg=0; redraw(); }
+  });
+  const up=()=>{st.drag=-1;};
+  svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
+  return {
+    st, redraw,
+    setShape(k){
+      st.cur=k; st.base=SHAPES[k].init.map(p=>p.slice()); st.P=st.base.map(p=>p.slice());
+      st.rotDeg=0; st.showLen=false; st.showAng=false; st.showDia=false; redraw();
+    },
+    setRotation(deg){ st.rotDeg=deg; st.P=rotate(st.base,deg); redraw(); },
+    resetShape(){ st.base=SHAPES[st.cur].init.map(p=>p.slice()); st.rotDeg=0; st.P=st.base.map(p=>p.slice()); redraw(); },
+    toggle(key){ st[key]=!st[key]; redraw(); return st[key]; }
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   학생의 말에서 무엇을 읽어 내는가
+   ═══════════════════════════════════════════════════════════════════ */
+function feat(raw){
+  let t=raw.replace(/\s+/g,'');
+  const diag=/(대각선|가로지르는선|꼭짓점끼리이은선|꼭짓점을이은선)/.test(t);
+  t=t.replace(/대각선/g,'');
+  /* '넓이가 변해요', '생각해요'의 변·각을 도형의 변·각으로 읽지 않도록 */
+  t=t.replace(/변하|변해|변했|변화|변형|생각|각각|각도기/g,'');
+  return {
+    diag,
+    daebyeon:/대변/.test(t),
+    daegak:/대각/.test(t),
+    opp:/(마주보|마주하|맞은편|반대쪽|반대편|건너편|서로마주)/.test(t),
+    side:/변/.test(t),
+    ang:/각/.test(t),
+    same:/(같|동일|일치|똑같)/.test(t),
+    len:/(길이|길다|짧)/.test(t),
+    size:/(크기|각도|도|°)/.test(t),
+    bis:/(이등분|반으로|반씩|절반|똑같이나눈|중점|반이|이등분점)/.test(t),
+    bisWord:/이등분/.test(t),
+    perp:/(수직|직각|90)/.test(t),
+    perpWord:/수직/.test(t)
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   목표와 발문
+   관문(gate)을 위에서부터 검사해, 처음으로 막히는 곳에서 묻습니다.
+   학생이 짧게 대답해도 그 대답만으로 다음 관문이 정해집니다.
+   ═══════════════════════════════════════════════════════════════════ */
+const GOALS={
+  side_eq:{ short:'대변의 길이', canon:'두 쌍의 대변의 길이가 각각 같다.',
+    gates:[
+      {ok:a=>a.opp||a.daebyeon, ask:'어느 변끼리 길이가 같나요?', hint:'서로 어떤 자리에 있는 변인지 살펴보세요.'},
+      {ok:a=>a.daebyeon, ask:'사각형에서 마주 보는 변을 무엇이라고 했죠?', hint:'\u2018대\u2019로 시작하는 두 글자예요.'}
+    ],
+    fin:{ok:f=>f.daebyeon&&f.same, ask:'좋아요. 그럼 대변이라는 용어를 사용해서 정리해 봅시다.'}},
+  angle_eq:{ short:'대각의 크기', canon:'두 쌍의 대각의 크기가 각각 같다.',
+    gates:[
+      {ok:a=>a.opp||a.daegak, ask:'어느 각끼리 크기가 같나요?', hint:'서로 어떤 자리에 있는 각인지 살펴보세요.'},
+      {ok:a=>a.daegak, ask:'사각형에서 마주 보는 각을 무엇이라고 했죠?', hint:'\u2018대\u2019로 시작하는 두 글자예요.'}
+    ],
+    fin:{ok:f=>f.daegak&&f.same, ask:'좋아요. 그럼 대각이라는 용어를 사용해서 정리해 봅시다.'}},
+  diag_bis:{ short:'대각선의 이등분', canon:'두 대각선은 서로를 이등분한다.',
+    gates:[
+      {ok:a=>a.diag, ask:'마주 보는 두 꼭짓점을 이은 그 선을 무엇이라고 하죠?', hint:'\u2018대\u2019로 시작하는 세 글자예요.'},
+      {ok:a=>a.bis, ask:'두 대각선이 만나는 점 O를 보세요. O가 대각선을 어떻게 나누고 있나요?', hint:'대각선 버튼과 길이 버튼을 함께 켜고 네 조각을 비교해 보세요.'},
+      {ok:a=>a.bisWord, ask:'\u2018반으로 나눈다\u2019를 수학 용어로 바꾸면 무엇일까요?', hint:'이○○'}
+    ],
+    fin:{ok:f=>f.diag&&f.bisWord, ask:'좋아요. 대각선과 이등분이라는 용어를 모두 넣어 정리해 봅시다.'}},
+  diag_eq:{ short:'대각선의 길이', canon:'두 대각선의 길이가 같다.',
+    gates:[
+      {ok:a=>a.diag, ask:'마주 보는 두 꼭짓점을 이은 그 선을 무엇이라고 하죠?', hint:'\u2018대\u2019로 시작하는 세 글자예요.'},
+      {ok:a=>a.len||a.same, ask:'두 대각선을 무엇으로 비교했나요?', hint:'길이 버튼을 켜고 두 대각선을 재 보세요.'}
+    ],
+    fin:{ok:f=>f.diag&&f.same, ask:'좋아요. 두 대각선의 길이가 어떠한지 문장으로 정리해 봅시다.'}},
+  diag_perp:{ short:'대각선의 수직', canon:'두 대각선은 서로 수직이다.',
+    gates:[
+      {ok:a=>a.diag, ask:'마주 보는 두 꼭짓점을 이은 그 선을 무엇이라고 하죠?', hint:'\u2018대\u2019로 시작하는 세 글자예요.'},
+      {ok:a=>a.perp, ask:'두 대각선이 만나서 이루는 각을 재 보세요. 몇 도인가요?', hint:'대각선 버튼과 각 버튼을 함께 켜 보세요.'},
+      {ok:a=>a.perpWord, ask:'\u2018직각으로 만난다\u2019를 한 낱말로 하면 무엇일까요?', hint:'수○'}
+    ],
+    fin:{ok:f=>f.diag&&f.perpWord, ask:'좋아요. 대각선과 수직이라는 용어를 모두 넣어 정리해 봅시다.'}}
+};
+/* 그 사각형에서 실제로 참인 성질 */
+const TRUE_OF={
+  para:['side_eq','angle_eq','diag_bis'],
+  rect:['side_eq','angle_eq','diag_bis','diag_eq'],
+  rhom:['side_eq','angle_eq','diag_bis','diag_perp'],
+  squ :['side_eq','angle_eq','diag_bis','diag_eq','diag_perp']
+};
+/* 확인해야 할 세 갈래 — 변의 길이 · 각의 크기 · 대각선 */
+const SLOTS={
+  para:{side:['side_eq'], angle:['angle_eq'], diag:['diag_bis']},
+  rect:{side:['side_eq'], angle:['angle_eq'], diag:['diag_eq','diag_bis']},
+  rhom:{side:['side_eq'], angle:['angle_eq'], diag:['diag_perp','diag_bis']},
+  squ :{side:['side_eq'], angle:['angle_eq'], diag:['diag_eq','diag_perp','diag_bis']}
+};
+const SLOTKEYS=['side','angle','diag'];
+const SLOTNAME={side:'변의 길이에 관한 성질', angle:'각의 크기에 관한 성질', diag:'대각선에 관한 성질'};
+const SLOTSHORT={side:'변의 길이', angle:'각의 크기', diag:'대각선'};
+
+/* 어느 목표에 대한 이야기인지 점수로 가늠합니다.
+   3점 이상이면 학생이 갈래를 분명히 말한 것으로 봅니다. */
+function scoreGoal(k,f){
+  if(k.indexOf('diag')===0){
+    if(!f.diag) return 0;
+    let s=3;
+    if(k==='diag_perp'&&f.perp) s+=3;
+    if(k==='diag_bis'&&f.bis) s+=3;
+    if(k==='diag_eq'&&(f.len||f.same)&&!f.perp&&!f.bis) s+=2;
+    return s;
+  }
+  if(f.diag) return 0;
+  if(k==='angle_eq') return (f.daegak?4:0)+(f.ang?2:0)+(f.size?1:0)+(f.opp?1:0);
+  return (f.daebyeon?4:0)+(f.side?2:0)+(f.len?1:0)+(f.opp?1:0);
+}
+function bestGoal(f,list){
+  let g=null,s=0;
+  list.forEach(k=>{const x=scoreGoal(k,f); if(x>s){s=x;g=k;}});
+  return {g:g,s:s};
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   진행 상황
+   ═══════════════════════════════════════════════════════════════════ */
+const store={};
+ORDER.forEach(k=>store[k]={def:false,found:[]});
+try{ const s=JSON.parse(localStorage.getItem('quadExplore')||'null');
+     if(s) ORDER.forEach(k=>{ if(s[k]) store[k]=s[k]; }); }catch(e){}
+function save(){ try{ localStorage.setItem('quadExplore',JSON.stringify(store)); }catch(e){} }
+const slotFilled=(k,sl)=>SLOTS[k][sl].some(g=>store[k].found.includes(g));
+const slotOf=(k,g)=>SLOTKEYS.find(sl=>SLOTS[k][sl].includes(g));
+/* 세 갈래 중 무엇이든 하나만 찾으면 클리어입니다. 나머지는 하고 싶은 학생만 더 해 봅니다. */
+const cleared=k=>store[k].found.length>0;
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면
+   ═══════════════════════════════════════════════════════════════════ */
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  el(id).classList.add('on');window.scrollTo(0,0);}
+function mini(type){
+  const S=SHAPES[type],W=145,H=84,pad=8;
+  const xs=S.init.map(p=>p[0]),ys=S.init.map(p=>p[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const k=Math.min((W-pad*2)/(x1-x0),(H-pad*2)/(y1-y0));
+  const ox=(W-(x1-x0)*k)/2,oy=(H-(y1-y0)*k)/2;
+  const p=S.init.map(([x,y])=>[((x-x0)*k+ox).toFixed(1),((y-y0)*k+oy).toFixed(1)]);
+  return `<svg viewBox="0 0 ${W} ${H}"><polygon points="${p.map(q=>q.join(',')).join(' ')}"
+    fill="${S.hex}" fill-opacity=".1" stroke="${S.hex}" stroke-width="3" stroke-linejoin="round"/></svg>`;
+}
+function paintPicks(){
+  el('picks').innerHTML=ORDER.map(k=>{
+    return `<div class="pick ${k}${cleared(k)?' clear':''}" data-k="${k}">
+      ${cleared(k)?'<span class="badge">클리어</span>':''}
+      ${mini(k)}<b>${SHAPES[k].name}</b>
+    </div>`;}).join('');
+  el('picks').querySelectorAll('.pick').forEach(d=>d.onclick=()=>enter(d.dataset.k));
+}
+paintPicks();
+
+/* ═══════════════════════════════════════════════════════════════════
+   선생님 모드 — 비밀번호를 확인한 뒤, 사각형을 골라 정의와 성질을
+   하나씩 눌러 가며 공개합니다. 학생 화면의 정답과 같은 문장을 씁니다.
+   ═══════════════════════════════════════════════════════════════════ */
+const TEACHER_PW='0815';
+el('tOpen').onclick=()=>{ el('tgPw').value=''; el('tgMsg').textContent=''; show('s-tgate'); setTimeout(()=>el('tgPw').focus(),120); };
+el('tgBack').onclick=()=>show('s-pick');
+el('tgOk').onclick=()=>{
+  if(el('tgPw').value===TEACHER_PW){ paintTPicks(); show('s-tlist'); }
+  else{ el('tgMsg').textContent='비밀번호가 달라요.'; el('tgPw').value=''; el('tgPw').focus(); }
+};
+el('tgPw').addEventListener('keydown',e=>{ if(e.key==='Enter') el('tgOk').click(); });
+el('tlBack').onclick=()=>show('s-pick');
+el('trBack').onclick=()=>show('s-tlist');
+
+function paintTPicks(){
+  el('tPicks').innerHTML=ORDER.map(k=>
+    `<div class="pick ${k}" data-k="${k}">${mini(k)}<b>${SHAPES[k].name}</b></div>`).join('');
+  el('tPicks').querySelectorAll('.pick').forEach(d=>d.onclick=()=>openReveal(d.dataset.k));
+}
+let trBoard=null;
+function openReveal(k){
+  if(!trBoard) trBoard=createBoard('trStage');
+  el('trName').textContent=SHAPES[k].name; el('trName').style.color=SHAPES[k].hex;
+  trBoard.setShape(k);
+  el('trRot').value=0; el('trRotV').textContent='0°';
+  [['trLen','showLen'],['trAng','showAng'],['trDia','showDia']].forEach(([id])=>el(id).classList.remove('on'));
+
+  /* 정의와, 그 사각형에서 참인 성질을 번호를 매겨 깔끔하게 나열합니다.
+     한 줄씩 눌러서 가리고/보이게 할 수 있어 학생들과 함께 확인하기 좋습니다. */
+  const items=[{label:'정의',text:SHAPES[k].def,isDef:true}]
+    .concat(TRUE_OF[k].map((g,i)=>({label:'성질'+(i+1),text:esc(GOALS[g].canon)})));
+  el('trAnswer').innerHTML=items.map((it,i)=>`
+    <div class="row${it.isDef?' def':''}" data-i="${i}">
+      <b>${esc(it.label)} :</b><span class="hidden">눌러서 확인</span>
+    </div>`).join('');
+  const full=items.map(it=>it.text);
+  el('trAnswer').querySelectorAll('.row').forEach(r=>{
+    const i=+r.dataset.i, span=r.querySelector('span');
+    r.onclick=()=>{
+      const shown=!span.classList.contains('hidden');
+      if(shown){ span.textContent='눌러서 확인'; span.classList.add('hidden'); }
+      else{ span.innerHTML=full[i]; span.classList.remove('hidden'); }
+    };
+  });
+  show('s-treveal');
+}
+el('trLen').onclick=()=>{ el('trLen').classList.toggle('on', trBoard.toggle('showLen')); };
+el('trAng').onclick=()=>{ el('trAng').classList.toggle('on', trBoard.toggle('showAng')); };
+el('trDia').onclick=()=>{ el('trDia').classList.toggle('on', trBoard.toggle('showDia')); };
+el('trRot').addEventListener('input',e=>{
+  const deg=+e.target.value; el('trRotV').textContent=deg+'°'; trBoard.setRotation(deg);
+});
+el('trRst').onclick=()=>{
+  trBoard.resetShape(); el('trRot').value=0; el('trRotV').textContent='0°';
+};
+
+/* ── 정의 관문 ── */
+function enter(k){
+  cur=k;
+  if(store[k].def){ openShape(k); return; }
+  const S=SHAPES[k];
+  el('gName').textContent=S.name; el('gName').style.color=S.hex;
+  el('gQ').innerHTML=`<b>${S.name}</b>은(는) ` + S.blanks.map((b,i)=>
+    `${esc(b.pre)}<input id="bl${i}" type="text" autocomplete="off">${esc(b.post)}`).join(' ')
+    + '입니다.';
+  el('gMsg').textContent=''; show('s-gate');
+  setTimeout(()=>el('bl0').focus(),120);
+}
+let gateTry=0;
+el('gOk').onclick=()=>{
+  const S=SHAPES[cur];
+  const bad=S.blanks.findIndex((b,i)=>!b.ok.test((el('bl'+i).value||'').replace(/\s+/g,'')));
+  if(bad<0){ store[cur].def=true; save(); gateTry=0; openShape(cur); return; }
+  gateTry++;
+  el('gMsg').textContent = gateTry>=2 ? '힌트 — '+S.blanks[bad].hint : '다시 한번 생각해 볼까요?';
+  el('gQ').classList.add('shake'); setTimeout(()=>el('gQ').classList.remove('shake'),320);
+  el('bl'+bad).focus();
+};
+el('gBack').onclick=()=>{gateTry=0;show('s-pick');};
+
+/* ── 탐구 ── */
+function setTool(id,on){el(id).classList.toggle('on',on);}
+function openShape(k){
+  cur=k;
+  base=SHAPES[k].init.map(p=>p.slice()); P=base.map(p=>p.slice()); rotDeg=0;
+  el('rot').value=0; el('rotV').textContent='0°';
+  showLen=showAng=showDia=false;
+  setTool('tLen',false);setTool('tAng',false);setTool('tDia',false);
+  el('pName').textContent=SHAPES[k].name; el('pName').style.color=SHAPES[k].hex;
+  el('pDef').innerHTML=`<b>${SHAPES[k].name}</b> · ${SHAPES[k].def}`;
+  el('ta').value=''; goal=null; gateFail=0; acc=null; slot=null; log=[];
+  el('inArea').style.display='none';
+  paintClear(); paintLog(); paintFound(); paintChips(); draw(); show('s-play');
+  setIntro(cleared(k)
+    ? '이미 성질을 찾은 사각형이에요. 다른 성질도 궁금하면 갈래를 눌러 더 살펴보세요.'
+    : '변의 길이, 각의 크기, 대각선 가운데 <b>하나</b>를 골라 알아낸 것을 적어 보세요.');
+}
+function paintClear(){
+  el('pClear').innerHTML = cleared(cur) ? '<span class="badge" style="position:static">클리어</span>' : '';
+}
+function paintFound(){
+  const used=[];
+  let h=SLOTKEYS.map(sl=>{
+    const g=SLOTS[cur][sl].find(x=>store[cur].found.includes(x));
+    if(!g) return '';
+    used.push(g);
+    return `<div class="slot on">
+      <s>✔</s>
+      <div><b>${esc(SLOTNAME[sl])}</b>
+      <span>${esc(GOALS[g].canon)}</span></div>
+    </div>`;
+  }).join('');
+  const extra=store[cur].found.filter(g=>!used.includes(g));
+  if(extra.length) h+=extra.map(g=>
+    `<div class="slot on extra"><s>＋</s><div><b>더 찾은 성질</b><span>${esc(GOALS[g].canon)}</span></div></div>`).join('');
+  el('found').innerHTML=h;
+}
+
+/* ── 대화 ── */
+let log=[],goal=null,gateFail=0,acc=null,slot=null;
+const ACCKEYS=['diag','daebyeon','daegak','opp','side','ang','same','len','size','bis','bisWord','perp','perpWord'];
+function accumulate(f){ if(!acc) acc={}; ACCKEYS.forEach(k=>{acc[k]=!!(acc[k]||f[k]);}); }
+/* 고른 갈래는 대화의 출발점으로 삼습니다 — 칩으로 이미 밝힌 셈이니까요 */
+const SEED={side:{side:true}, angle:{ang:true}, diag:{diag:true}};
+function seed(sl){ acc=Object.assign({},SEED[sl]); }
+/* 받침에 따라 조사를 고릅니다 */
+function josa(w,a,b){
+  const c=w.charCodeAt(w.length-1);
+  const has=(c>=0xAC00&&c<=0xD7A3)?((c-0xAC00)%28!==0):false;
+  return w+(has?a:b);
+}
+function say(who,text,cls){ log.push({who,text,cls}); paintLog(); }
+function paintLog(){
+  el('log').innerHTML=log.slice(-6).map(b=>
+    `<div class="bub ${b.who}${b.cls?' '+b.cls:''}">${b.text}</div>`).join('');
+}
+
+/* 세 갈래 칩 — 무엇을 알아내야 하는지 여기서 자연스럽게 보입니다 */
+function paintChips(){
+  el('chips').innerHTML=SLOTKEYS.map(sl=>{
+    const done=slotFilled(cur,sl);
+    return `<button data-sl="${sl}" class="${done?'done':''}${slot===sl?' sel':''}">
+      ${esc(SLOTSHORT[sl])}<s>${done?'✔ 찾음':'○ 아직'}</s></button>`;
+  }).join('');
+  el('chips').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseSlot(b.dataset.sl));
+}
+function setIntro(html){ el('slotIntro').innerHTML=html; }
+function chooseSlot(sl){
+  slot=sl; goal=null; gateFail=0; seed(sl);
+  paintChips();
+  el('inArea').style.display='block';
+  if(slotFilled(cur,sl)){
+    const g=SLOTS[cur][sl].find(x=>store[cur].found.includes(x));
+    setIntro(`「${esc(SLOTSHORT[sl])}」${josa(SLOTSHORT[sl],'은','는').slice(SLOTSHORT[sl].length)} 이미 찾았어요.<b>${esc(GOALS[g].canon)}</b>`);
+  }else{
+    setIntro(`「${esc(SLOTSHORT[sl])}」${josa(SLOTSHORT[sl],'과','와').slice(SLOTSHORT[sl].length)} 관련된 성질을 찾아볼까요? 도형을 움직여도 변하지 않는 것을 적어 주세요.`);
+  }
+}
+
+function solved(g){
+  const already=cleared(cur);           /* 이번 것을 넣기 전에 이미 클리어했었는가 */
+  if(!store[cur].found.includes(g)){ store[cur].found.push(g); save(); }
+  say('ai',`잘했어요! 조금만 다듬어 주겠습니다.<b>${esc(GOALS[g].canon)}</b>`
+      +`<span class="hint" style="color:#0ca678">이 문장을 활동지에 옮겨 적으세요.</span>`,'ok');
+  goal=null; gateFail=0; acc=null;
+  paintClear(); paintFound(); paintChips(); paintPicks();
+  el('inArea').style.display='none'; slot=null; paintChips();
+  say('ai', already
+    ? '성질을 하나 더 찾았어요. 목록으로 돌아가 다른 사각형도 살펴볼까요?'
+    : '성질을 찾았어요, 클리어! 목록으로 돌아가 다른 사각형도 살펴볼까요?');
+}
+
+el('send').onclick=()=>{
+  const v=el('ta').value.trim();
+  if(v.length<2){ el('ta').focus(); return; }
+  if(!slot){ say('ai','위에서 무엇에 대해 알아냈는지 먼저 골라 주세요.'); return; }
+  el('ta').value='';
+  say('me',esc(v));
+  const f=feat(v);
+
+  if(!goal){
+    const any=bestGoal(f,Object.keys(GOALS));
+    if(any.s>=3 && !TRUE_OF[cur].includes(any.g)){
+      say('ai','정말 그럴까요? 꼭짓점을 여러 방향으로 움직이면서 다시 재 보세요. 한 모양에서만 그런 것일 수도 있어요.');
+      return;
+    }
+    /* 다른 갈래를 분명히 말했다면 그쪽으로 옮겨 갑니다 */
+    if(any.s>=3 && slotOf(cur,any.g) && slotOf(cur,any.g)!==slot){
+      slot=slotOf(cur,any.g); seed(slot); paintChips();
+      say('ai',`그건 「${esc(SLOTSHORT[slot])}」에 관한 이야기네요. 좋아요, 그쪽으로 함께 볼게요.`);
+    }
+    if(store[cur].found.includes(any.g) && any.s>=3){
+      say('ai','그건 이미 찾았어요. 다른 갈래도 눌러 볼까요?'); return;
+    }
+    const here=bestGoal(f,SLOTS[cur][slot]);
+    goal = here.s>0 ? here.g
+         : (SLOTS[cur][slot].find(x=>!store[cur].found.includes(x)) || SLOTS[cur][slot][0]);
+    gateFail=0; if(!acc) seed(slot);
+  }
+  accumulate(f);
+  const G=GOALS[goal];
+  const i=G.gates.findIndex(x=>!x.ok(acc));
+  const step=(i<0)?G.fin:G.gates[i];
+  if(i<0 && G.fin.ok(f)){ solved(goal); return; }
+  gateFail++;
+  const h=(gateFail>=2&&step.hint)?`<span class="hint">힌트 — ${esc(step.hint)}</span>`:'';
+  say('ai',esc(step.ask)+h);
+};
+el('ta').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();el('send').click();}
+});
+
+el('back').onclick=()=>{paintPicks();show('s-pick');};
+el('tLen').onclick=()=>{showLen=!showLen;setTool('tLen',showLen);draw();};
+el('tAng').onclick=()=>{showAng=!showAng;setTool('tAng',showAng);draw();};
+el('tDia').onclick=()=>{showDia=!showDia;setTool('tDia',showDia);draw();};
+el('rot').addEventListener('input',e=>{
+  rotDeg=+e.target.value; el('rotV').textContent=rotDeg+'°';
+  P=rotate(base,rotDeg); draw();
+});
+el('tRst').onclick=()=>{
+  base=SHAPES[cur].init.map(p=>p.slice()); rotDeg=0;
+  el('rot').value=0; el('rotV').textContent='0°';
+  P=base.map(p=>p.slice()); draw();
+};
+</script>
+</body>
+</html>

@@ -370,7 +370,10 @@ function solve(type,P,i,V){
     const q=mul(pd,dot(sub(P[(i+1)%4],Mo),pd));
     Q[(i+1)%4]=add(M,q); Q[(i+3)%4]=sub(M,q);
   }
-  return Q.map(p=>[Math.round(p[0]*10)/10,Math.round(p[1]*10)/10]);
+  /* 좌표를 반올림하지 않습니다. 반올림한 값이 다음 드래그의 입력으로 되돌아오면
+     오차가 조금씩 쌓여, 마름모의 네 변이 4.2/4.2/4.2/4.3처럼 다르게 보입니다.
+     화면에 그릴 때만 소수점 첫째 자리로 줄입니다. */
+  return Q;
 }
 /* 회전 — 중심을 기준으로 돌리고, 화면 밖으로 나가면 안으로 밀어 넣습니다 */
 function rotate(P,deg){
@@ -384,7 +387,7 @@ function rotate(P,deg){
   if(Math.max(...xs)+ox>MAXX) ox=MAXX-Math.max(...xs);
   if(Math.min(...ys)<MINY) oy=MINY-Math.min(...ys);
   if(Math.max(...ys)+oy>MAXY) oy=MAXY-Math.max(...ys);
-  return Q.map(([x,y])=>[Math.round((x+ox)*10)/10,Math.round((y+oy)*10)/10]);
+  return Q.map(([x,y])=>[x+ox,y+oy]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -513,19 +516,23 @@ function feat(raw){
   t=t.replace(/대각선/g,'');
   /* '넓이가 변해요', '생각해요'의 변·각을 도형의 변·각으로 읽지 않도록 */
   t=t.replace(/변하|변해|변했|변화|변형|생각|각각|각도기/g,'');
+  const perp=/(수직|직각|90)/.test(t);
+  /* '직각'은 각의 \u2018크기\u2019를 가리키는 말이지, \u2018어느 각\u2019을 가리키는 말이 아닙니다.
+     이걸 주어로 읽으면, 앞서 이야기하던 대각선이 엉뚱하게 지워집니다. */
+  const s=t.replace(/직각/g,'');
   return {
     diag,
-    daebyeon:/대변/.test(t),
-    daegak:/대각/.test(t),
-    opp:/(마주보|마주하|맞은편|반대쪽|반대편|건너편|서로마주)/.test(t),
-    side:/변/.test(t),
-    ang:/각/.test(t),
+    daebyeon:/대변/.test(s),
+    daegak:/대각/.test(s),
+    opp:/(마주보|마주하|맞은편|반대쪽|반대편|건너편|서로마주)/.test(s),
+    side:/변/.test(s),
+    ang:/각/.test(s),
     same:/(같|동일|일치|똑같)/.test(t),
     len:/(길이|길다|짧)/.test(t),
     size:/(크기|각도|도|°)/.test(t),
     bis:/(이등분|반으로|반씩|절반|똑같이나눈|중점|반이|이등분점)/.test(t),
     bisWord:/이등분/.test(t),
-    perp:/(수직|직각|90)/.test(t),
+    perp,
     perpWord:/수직/.test(t)
   };
 }
@@ -616,7 +623,12 @@ function bestGoal(f,list){
 const store={};
 ORDER.forEach(k=>store[k]={def:false,found:[]});
 try{ const s=JSON.parse(localStorage.getItem('quadExplore')||'null');
-     if(s) ORDER.forEach(k=>{ if(s[k]) store[k]=s[k]; }); }catch(e){}
+     if(s) ORDER.forEach(k=>{
+       if(!s[k]) return;
+       /* 예전 버전에서 저장된 값이 남아 있어도 화면이 깨지지 않도록 걸러 냅니다 */
+       const fd=Array.isArray(s[k].found)?s[k].found.filter(g=>TRUE_OF[k]&&TRUE_OF[k].includes(g)):[];
+       store[k]={def:!!s[k].def, found:fd};
+     }); }catch(e){}
 function save(){ try{ localStorage.setItem('quadExplore',JSON.stringify(store)); }catch(e){} }
 /* 세 성질 중 무엇이든 하나만 찾으면 클리어입니다. 나머지는 하고 싶은 학생만 더 해 봅니다. */
 const cleared=k=>store[k].found.length>0;
@@ -747,7 +759,7 @@ function openShape(k){
   setTool('tLen',false);setTool('tAng',false);setTool('tDia',false);
   el('pName').textContent=SHAPES[k].name; el('pName').style.color=SHAPES[k].hex;
   el('pDef').innerHTML=`<b>${SHAPES[k].name}</b> · ${SHAPES[k].def}`;
-  el('ta').value=''; goal=null; gateFail=0; acc=null; log=[];
+  el('ta').value=''; goal=null; gateFail=0; acc=null; vagueFail=0; pre=null; log=[];
   paintClear(); paintLog(); paintFound(); draw(); show('s-play');
   setIntro(cleared(k)
     ? '이미 성질을 찾은 사각형이에요. 도형을 계속 움직이면서 다른 성질도 찾아보세요.'
@@ -764,15 +776,9 @@ function paintFound(){
 }
 
 /* ── 대화 ── */
-let log=[],goal=null,gateFail=0,acc=null;
+let log=[],goal=null,gateFail=0,acc=null,vagueFail=0,pre=null;
 const ACCKEYS=['diag','daebyeon','daegak','opp','side','ang','same','len','size','bis','bisWord','perp','perpWord'];
 function accumulate(f){ if(!acc) acc={}; ACCKEYS.forEach(k=>{acc[k]=!!(acc[k]||f[k]);}); }
-/* 받침에 따라 조사를 고릅니다 */
-function josa(w,a,b){
-  const c=w.charCodeAt(w.length-1);
-  const has=(c>=0xAC00&&c<=0xD7A3)?((c-0xAC00)%28!==0):false;
-  return w+(has?a:b);
-}
 function say(who,text,cls){ log.push({who,text,cls}); paintLog(); }
 function paintLog(){
   el('log').innerHTML=log.slice(-6).map(b=>
@@ -786,23 +792,57 @@ function solved(g){
   if(!store[cur].found.includes(g)){ store[cur].found.push(g); save(); }
   say('ai',`잘했어요! 조금만 다듬어 주겠습니다.<b>${esc(GOALS[g].canon)}</b>`
       +`<span class="hint" style="color:#0ca678">이 문장을 활동지에 옮겨 적으세요.</span>`,'ok');
-  goal=null; gateFail=0; acc=null;
+  goal=null; gateFail=0; acc=null; vagueFail=0; pre=null;
   paintClear(); paintFound(); paintPicks();
   const left=TRUE_OF[cur].filter(x=>!store[cur].found.includes(x)).length;
-  say('ai', !already ? '성질을 찾았어요, 클리어! 계속 움직이면서 다른 성질도 찾아볼까요?'
-    : left>0 ? '성질을 하나 더 찾았어요. 또 다른 성질도 있는지 살펴보세요.'
-              : '이 사각형에서 찾을 수 있는 성질을 모두 찾았어요! 대단해요.');
+  /* 그 도형만의 대각선 성질을 아직 못 찾았다면, 다음 목표로 분명히 가리켜 줍니다 */
+  const diagLeft=TRUE_OF[cur].some(x=>(x==='diag_eq'||x==='diag_perp')&&!store[cur].found.includes(x));
+  say('ai', left===0 ? '이 사각형에서 찾을 수 있는 성질을 모두 찾았어요! 대단해요.'
+    : diagLeft ? (already?'성질을 하나 더 찾았어요. ':'성질을 찾았어요, 클리어! ')+'이번엔 대각선에 관한 성질을 찾아볼까요? \u2018대각선 보기\u2019 버튼을 켜고 두 대각선을 살펴보세요.'
+    : !already ? '성질을 찾았어요, 클리어! 계속 움직이면서 다른 성질도 찾아볼까요?'
+               : '성질을 하나 더 찾았어요. 또 다른 성질도 있는지 살펴보세요.');
 }
 
 /* 정사각형·직사각형은 정의에서 이미 '네 각이 모두 직각'임을 알고 시작하고,
    정사각형·마름모는 정의에서 이미 '네 변의 길이가 모두 같음'을 알고 시작합니다.
    그래서 이 목표에서는 '어느 것끼리 같은가'를 새삼 묻는 첫 관문을 건너뛰고
    바로 용어(대각/대변)를 묻는 다음 관문으로 넘어갑니다. */
-function startGoal(g){
+/* 앞서 한 말과 이번 말을 합칩니다.
+   학생은 '길이가 같아' → '변!' 처럼 나누어 말하기 때문에,
+   문장을 하나씩 따로 보면 무슨 이야기인지 영영 알 수 없습니다.
+   다만 이번 문장에서 대상(변/각/대각선)을 새로 말했다면 그 대상으로 갈아탑니다. */
+const SUBJ=['diag','daebyeon','daegak','side','ang'];
+const MEAS=['opp','same','len','size','bis','bisWord','perp','perpWord'];
+function mergeFeat(base,f){
+  if(!base) return Object.assign({},f);
+  const hasSubj=SUBJ.some(k=>f[k]);
+  const hasMeas=MEAS.some(k=>f[k]);
+  /* 대상과 잰 값을 한 문장에 다 말했다면 그것만으로 완결된 주장입니다.
+     앞서 재었던 것(예: 직각)이 남아 붙으면 엉뚱한 성질로 읽힙니다. */
+  if(hasSubj&&hasMeas) return Object.assign({},f);
+  const m={};
+  SUBJ.forEach(k=>{ m[k]=hasSubj?!!f[k]:!!(base[k]||f[k]); });
+  MEAS.forEach(k=>{ m[k]=!!(base[k]||f[k]); });
+  return m;
+}
+function mergePre(f){ pre=mergeFeat(pre,f); return pre; }
+/* 학생이 주어를 빼고 대답했을 때, 무엇에 대한 이야기로 알아들었는지 되짚어 줍니다 */
+function subjOf(m){
+  if(!m) return null;
+  if(m.diag) return '대각선';
+  if(m.daebyeon||m.side) return '변';
+  if(m.daegak||m.ang) return '각';
+  return null;
+}
+
+function startGoal(g,seedFrom){
   goal=g; gateFail=0;
   const skip=(g==='angle_eq'&&(cur==='rect'||cur==='squ'))
            ||(g==='side_eq'&&(cur==='rhom'||cur==='squ'));
-  acc=skip?{opp:true}:null;
+  /* 목표가 정해지기 전에 학생이 이미 한 말은 그대로 이어받습니다 */
+  acc=seedFrom?Object.assign({},seedFrom):null;
+  if(skip){ acc=acc||{}; acc.opp=true; }
+  pre=null;
 }
 
 el('send').onclick=()=>{
@@ -811,12 +851,17 @@ el('send').onclick=()=>{
   el('ta').value='';
   say('me',esc(v));
   const f=feat(v);
+  /* 주어를 생략하고 대답했다면, 앞뒤 맥락에서 읽어낸 주어를 확인해 줍니다 */
+  let lead='';
+  const noSubj=!SUBJ.some(k=>f[k]);
 
   if(goal){
-    /* 진행 중인 이야기와 전혀 다른 성질로 초점이 옮겨갔는지 확인합니다.
-       현재 목표 기준 점수보다 다른 목표의 점수가 뚜렷이 높을 때만 옮겨 갑니다. */
-    const any=bestGoal(f,Object.keys(GOALS));
-    const curScore=scoreGoal(goal,f);
+    /* 진행 중인 이야기와 다른 성질로 초점이 옮겨갔는지 확인합니다.
+       여기서도 지금까지 한 말과 합쳐서 봅니다 — '대각선'이라고만 했다가
+       다음 턴에 '길이가 같아'라고 덧붙이는 경우를 놓치지 않기 위해서입니다. */
+    const mf=mergeFeat(acc,f);
+    const any=bestGoal(mf,Object.keys(GOALS));
+    const curScore=scoreGoal(goal,mf);
     if(any.s>=3 && any.g!==goal && any.s>curScore){
       if(!TRUE_OF[cur].includes(any.g)){
         say('ai','정말 그럴까요? 꼭짓점을 여러 방향으로 움직이면서 다시 재 보세요. 한 모양에서만 그런 것일 수도 있어요.');
@@ -825,31 +870,68 @@ el('send').onclick=()=>{
       if(store[cur].found.includes(any.g)){
         say('ai','그건 이미 찾았어요. 다른 성질도 있는지 계속 움직여 보세요.'); return;
       }
-      say('ai','좋아요, 이번엔 다른 이야기네요. 그쪽을 같이 볼게요.');
-      startGoal(any.g);
+      if(noSubj && subjOf(mf)) lead=subjOf(mf)+'에 대한 이야기군요. ';
+      startGoal(any.g,mf);
     }
   }
 
   if(!goal){
-    const any=bestGoal(f,Object.keys(GOALS));
-    if(any.s<3){
-      /* 대각선 성질이 따로 있는 도형(직사각형·마름모·정사각형)은, 아직 아무 성질도
-         못 찾은 상태라면 애매한 대답에도 계속 대각선 쪽으로 다시 이끕니다.
-         그러지 않으면 변·각 이야기로 다시 흘러가 버리기 쉽습니다. */
-      const wantDiag=!cleared(cur) && TRUE_OF[cur].some(g=>g==='diag_eq'||g==='diag_perp');
-      say('ai', wantDiag
-        ? '대각선에 대해 알아낸 것을 조금 더 자세히 적어 볼까요? 대각선 버튼을 켜고, 두 대각선의 길이나 두 대각선이 만나는 각을 살펴보세요.'
-        : '무엇이 변하지 않는지 조금 더 자세히 적어 줄래요? (예: 어떤 변, 어떤 각, 대각선 등)');
+    /* 앞서 한 말과 합쳐서 무슨 이야기인지 판단합니다 */
+    const m=mergePre(f);
+    const any=bestGoal(m,Object.keys(GOALS));
+    const wantDiag=!cleared(cur) && TRUE_OF[cur].some(g=>g==='diag_eq'||g==='diag_perp');
+    /* 마름모·정사각형에서 \u201890도\u2019나 \u2018수직\u2019은 내각이 아니라 대각선 이야기입니다.
+       \u2018대각선\u2019이라는 말이 아직 없으면 대각 쪽으로 새지 않게 붙잡아 둡니다. */
+    const perpIsDiag = m.perp && !m.diag && TRUE_OF[cur].includes('diag_perp');
+    /* 직사각형에서 \u2018직각\u2019은 네 내각 이야기, 곧 정의에서 이미 아는 사실입니다.
+       직사각형의 두 대각선은 수직이 아니므로, 대각선의 각을 재라고 하면 안 됩니다. */
+    const perpIsDef = m.perp && !m.diag && !TRUE_OF[cur].includes('diag_perp')
+                      && /직각/.test(SHAPES[cur].def);
+    if(any.s<3 || perpIsDiag || perpIsDef){
+      /* 무엇에 대한 이야기인지는 아직 모르지만, 학생이 '길이'나 '각'처럼
+         무엇을 재었는지는 말했다면 그 말을 받아서 구체적으로 되묻습니다.
+         대각선 성질이 따로 있는 도형은 대각선 쪽으로 이끌어 줍니다. */
+      vagueFail++;
+      /* 초점이 대각선이 아니라 변·각에 가 있는지 봅니다 */
+      const elsewhere = wantDiag && !m.diag && (m.side||m.ang||m.daebyeon||m.daegak);
+      let msg;
+      if(perpIsDef){
+        msg = `네 각이 모두 직각인 것은 ${SHAPES[cur].name}의 정의에서 이미 알고 있어요. 지금은 대각선에 관한 성질을 찾아볼까요? \u2018대각선 보기\u2019 버튼을 켜고 두 대각선의 길이를 재어 비교해 보세요.`;
+      }else if(perpIsDiag && vagueFail<2){
+        msg = '어디에서 90°가 나왔나요? 두 대각선이 만나서 이루는 각을 말하는 건가요?';
+      }else if(perpIsDiag || elsewhere){
+        msg = '지금은 대각선에 관한 성질을 찾고 있어요. 변이나 각이 아니라, \u2018대각선 보기\u2019 버튼을 켜고 두 대각선을 살펴볼까요? 두 대각선의 길이를 재거나, 두 대각선이 만나서 이루는 각을 재어 보세요.';
+      }else if(m.len||m.same){
+        msg = wantDiag
+          ? '무엇의 길이가 같나요? 두 대각선의 길이를 재어 비교해 보세요.'
+          : '무엇의 길이가 같나요? 변인가요, 대각선인가요?';
+      }else if(m.perp||m.ang||m.size){
+        msg = wantDiag
+          ? '어느 각을 말하는 건가요? 두 대각선이 만나서 이루는 각을 재어 보세요.'
+          : '어느 각의 크기가 같나요? 서로 어떤 자리에 있는 각인지 살펴보세요.';
+      }else if(m.bis){
+        msg = '무엇이 반으로 나뉘나요? 두 대각선이 만나는 점 O를 살펴보세요.';
+      }else{
+        msg = wantDiag
+          ? '대각선에 대해 알아낸 것을 적어 볼까요? 두 대각선의 길이나, 두 대각선이 만나는 각을 살펴보세요.'
+          : '무엇이 변하지 않는지 조금 더 자세히 적어 줄래요? (예: 어떤 변, 어떤 각, 대각선 등)';
+      }
+      /* 대각선으로 확실히 돌려세우는 말에는 힌트를 겹쳐 붙이지 않습니다 */
+      const h=(vagueFail>=2 && !(perpIsDiag||elsewhere||perpIsDef))
+        ? `<span class="hint">힌트 — ${esc(wantDiag?'\u2018대각선 보기\u2019 버튼을 켜고, \u2018대각선\u2019이라는 말을 넣어서 적어 보세요.':'\u2018변\u2019, \u2018각\u2019, \u2018대각선\u2019 중 무엇에 대한 이야기인지 넣어서 적어 보세요.')}</span>` : '';
+      say('ai',esc(msg)+h);
       return;
     }
     if(!TRUE_OF[cur].includes(any.g)){
       say('ai','정말 그럴까요? 꼭짓점을 여러 방향으로 움직이면서 다시 재 보세요. 한 모양에서만 그런 것일 수도 있어요.');
-      return;
+      pre=null; return;
     }
     if(store[cur].found.includes(any.g)){
-      say('ai','그건 이미 찾았어요. 다른 성질도 있는지 계속 움직여 보세요.'); return;
+      say('ai','그건 이미 찾았어요. 다른 성질도 있는지 계속 움직여 보세요.'); pre=null; return;
     }
-    startGoal(any.g);
+    vagueFail=0;
+    if(noSubj && subjOf(m)) lead=subjOf(m)+'에 대한 이야기군요. ';
+    startGoal(any.g,m);
   }
   accumulate(f);
   const G=GOALS[goal];
@@ -861,7 +943,7 @@ el('send').onclick=()=>{
   const hints=step.hint?(Array.isArray(step.hint)?step.hint:[step.hint]):null;
   const tier=gateFail>=3?1:(gateFail>=2?0:-1);
   const h=(hints&&tier>=0)?`<span class="hint">힌트 — ${esc(hints[Math.min(tier,hints.length-1)])}</span>`:'';
-  say('ai',esc(step.ask)+h);
+  say('ai',esc(lead+step.ask)+h);
 };
 el('ta').addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();el('send').click();}
